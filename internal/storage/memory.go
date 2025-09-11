@@ -50,10 +50,7 @@ func (s *InMemoryStorage) AddToWhitelist(ip net.IPNet, force bool) (Ok bool, err
 	err = nil
 	for _, n := range s.whitelist {
 		if netutils.Overlaps(n, &ip) {
-			if netutils.ContainsSubnet(n, &ip) {
-				return false, fmt.Errorf("IP fully overlaps in whitelist: %s", n.String())
-			}
-			err = fmt.Errorf("IP overlap in whitelist: %s", n.String())
+			return false, fmt.Errorf("IP overlaps in whitelist: %s", n.String())
 		}
 	}
 	for _, n := range s.blacklist {
@@ -74,10 +71,7 @@ func (s *InMemoryStorage) AddToBlacklist(ip net.IPNet, force bool) (Ok bool, err
 	err = nil
 	for _, n := range s.blacklist {
 		if netutils.Overlaps(n, &ip) {
-			if netutils.ContainsSubnet(n, &ip) {
-				return false, fmt.Errorf("IP fully overlaps in blacklist: %s", n.String())
-			}
-			err = fmt.Errorf("IP overlap in blacklist: %s", n.String())
+			return false, fmt.Errorf("IP overlaps in blacklist: %s", n.String())
 		}
 	}
 	for _, n := range s.whitelist {

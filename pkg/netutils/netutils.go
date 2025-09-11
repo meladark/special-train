@@ -26,12 +26,6 @@ func networkRange(n *net.IPNet) (uint32, uint32) {
 }
 
 func Overlaps(a, b *net.IPNet) bool {
-	amin, amax := networkRange(a)
-	bmin, bmax := networkRange(b)
-	return amin <= bmax && bmin <= amax
-}
-
-func ContainsSubnet(a, b *net.IPNet) bool {
 	aMin, aMax := networkRange(a)
 	bMin, bMax := networkRange(b)
 	aContainsB := bMin <= aMin && bMax >= aMax
