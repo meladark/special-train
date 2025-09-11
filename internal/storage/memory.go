@@ -1,8 +1,12 @@
 package storage
 
 import (
+	"fmt"
 	"net"
 	"sync"
+
+	"github.com/meladark/special-train/pkg/netutils"
+	_ "github.com/meladark/special-train/pkg/netutils"
 )
 
 type InMemoryStorage struct {
@@ -38,4 +42,52 @@ func (s *InMemoryStorage) InBlacklist(ip net.IP) bool {
 		}
 	}
 	return false
+}
+
+func (s *InMemoryStorage) AddToWhitelist(ip net.IPNet, force bool) (Ok bool, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	err = nil
+	for _, n := range s.whitelist {
+		if netutils.Overlaps(n, &ip) {
+			if netutils.ContainsSubnet(n, &ip) {
+				return false, fmt.Errorf("IP fully overlaps in whitelist: %s", n.String())
+			}
+			err = fmt.Errorf("IP overlap in whitelist: %s", n.String())
+		}
+	}
+	for _, n := range s.blacklist {
+		if netutils.Overlaps(n, &ip) {
+			if !force {
+				return false, fmt.Errorf("IP overlap in blacklist: %s", n.String())
+			}
+		}
+	}
+	Ok = true
+	s.whitelist[ip.String()] = &ip
+	return
+}
+
+func (s *InMemoryStorage) AddToBlacklist(ip net.IPNet, force bool) (Ok bool, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	err = nil
+	for _, n := range s.blacklist {
+		if netutils.Overlaps(n, &ip) {
+			if netutils.ContainsSubnet(n, &ip) {
+				return false, fmt.Errorf("IP fully overlaps in blacklist: %s", n.String())
+			}
+			err = fmt.Errorf("IP overlap in blacklist: %s", n.String())
+		}
+	}
+	for _, n := range s.whitelist {
+		if netutils.Overlaps(n, &ip) {
+			if !force {
+				return false, fmt.Errorf("IP overlap in whitelist: %s", n.String())
+			}
+		}
+	}
+	Ok = true
+	s.blacklist[ip.String()] = &ip
+	return
 }
