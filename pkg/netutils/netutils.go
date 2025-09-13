@@ -12,7 +12,6 @@ func networkRange(n *net.IPNet) (uint32, uint32) {
 	}
 	mask := n.Mask
 	if len(mask) == 16 {
-		// Если маска в IPv6 формате, берем последние 4 байта
 		mask = mask[12:]
 	}
 	if len(mask) != 4 {

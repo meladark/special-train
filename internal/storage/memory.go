@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"github.com/meladark/special-train/pkg/netutils"
-	_ "github.com/meladark/special-train/pkg/netutils"
 )
 
 type InMemoryStorage struct {

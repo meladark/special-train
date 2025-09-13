@@ -1,21 +1,24 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log"
 	"net"
 	"net/http"
 
+	"github.com/meladark/special-train/internal/bucket"
 	"github.com/meladark/special-train/internal/storage"
 )
 
 type Service struct {
 	store storage.Storage
+	rl    *bucket.RateLimiter
 }
 
-func New(store storage.Storage) *Service {
-	return &Service{store: store}
+func New(store storage.Storage, bucket *bucket.RateLimiter) *Service {
+	return &Service{store: store, rl: bucket}
 }
 
 type AuthorizeRequest struct {
@@ -29,12 +32,12 @@ type AuthorizeResponse struct {
 	Reason string `json:"reason,omitempty"`
 }
 
-type WhitelistRequest struct {
+type ListRequest struct {
 	IP    string `json:"ip"`
 	Force bool   `json:"force"`
 }
 
-type WhitelistReponse struct {
+type ListReponse struct {
 	Ok     bool   `json:"ok"`
 	Reason string `json:"reason,omitempty"`
 }
@@ -63,12 +66,75 @@ func (s *Service) AuthorizeHandler(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(AuthorizeResponse{Ok: false, Reason: "ip in blacklist"})
 		return
 	}
-	// TODO: redis buckets
+	ctx := context.Background()
+	allow, stat, err := s.rl.CheckAll(ctx, req.Login, req.Password, req.IP)
+	log.Print("\tLogin: ", stat["login"], "\n\t\t\tPassword: ", stat["pass"], "\n\t\t\tIP: ", stat["ip"])
+	if err != nil {
+		http.Error(w, "service error: "+err.Error(), http.StatusMethodNotAllowed)
+		return
+	}
+	if !allow {
+		json.NewEncoder(w).Encode(AuthorizeResponse{Ok: false, Reason: "rate limit exceeded"})
+		return
+	}
 	json.NewEncoder(w).Encode(AuthorizeResponse{Ok: true})
 }
 
 func (s *Service) ResetBucketHandler(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte(`{"result":"reset stub"}`))
+	if r.Method != http.MethodPost && r.Method != http.MethodDelete {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	ctx := context.Background()
+	err := s.rl.ResetAll(ctx, "*")
+	if err != nil {
+		http.Error(w, "service error: "+err.Error(), http.StatusMethodNotAllowed)
+	}
+	json.NewEncoder(w).Encode(AuthorizeResponse{Ok: true})
+}
+
+func (s *Service) ResetBucketIPHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req AuthorizeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err == io.EOF {
+			http.Error(w, "Empty field", http.StatusBadRequest)
+			return
+		}
+	}
+	log.Print(req.IP)
+	if ip := net.ParseIP(req.IP); ip != nil {
+		if err := s.rl.ResetIP(context.Background(), req.IP); err != nil {
+			http.Error(w, "service error: "+err.Error(), http.StatusMethodNotAllowed)
+			return
+		}
+		json.NewEncoder(w).Encode(AuthorizeResponse{Ok: true})
+		return
+	}
+	http.Error(w, "invalid ip", http.StatusBadRequest)
+}
+
+func (s *Service) ResetBucketLoginHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req AuthorizeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err == io.EOF {
+			http.Error(w, "empty field", http.StatusBadRequest)
+			return
+		}
+	}
+	log.Print(req.Login)
+	if err := s.rl.ResetLogin(context.Background(), req.Login); err != nil {
+		http.Error(w, "service error: "+err.Error(), http.StatusMethodNotAllowed)
+		return
+	}
+	json.NewEncoder(w).Encode(AuthorizeResponse{Ok: true})
 }
 
 func (s *Service) WhitelistHandler(w http.ResponseWriter, r *http.Request) {
@@ -76,7 +142,7 @@ func (s *Service) WhitelistHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	var req WhitelistRequest
+	var req ListRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		if err == io.EOF {
 			http.Error(w, "Empty field", http.StatusBadRequest)
@@ -95,12 +161,38 @@ func (s *Service) WhitelistHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := s.store.AddToWhitelist(*ipnet, req.Force)
 	if err != nil {
-		json.NewEncoder(w).Encode(WhitelistReponse{Ok: res, Reason: err.Error()})
+		json.NewEncoder(w).Encode(ListReponse{Ok: res, Reason: err.Error()})
 		return
 	}
-	json.NewEncoder(w).Encode(WhitelistReponse{Ok: res})
+	json.NewEncoder(w).Encode(ListReponse{Ok: res})
 }
 
 func (s *Service) BlacklistHandler(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte(`{"result":"blacklist stub"}`))
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req ListRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err == io.EOF {
+			http.Error(w, "Empty field", http.StatusBadRequest)
+			return
+		}
+	}
+	log.Print(req.IP, req.Force)
+	_, ipnet, err := net.ParseCIDR(req.IP)
+	if err != nil {
+		if ip := net.ParseIP(req.IP); ip != nil {
+			ipnet = &net.IPNet{IP: ip, Mask: net.CIDRMask(32, 32)}
+		} else {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	res, err := s.store.AddToBlacklist(*ipnet, req.Force)
+	if err != nil {
+		json.NewEncoder(w).Encode(ListReponse{Ok: res, Reason: err.Error()})
+		return
+	}
+	json.NewEncoder(w).Encode(ListReponse{Ok: res})
 }

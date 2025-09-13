@@ -38,3 +38,19 @@ func TestOverlaps(t *testing.T) {
 		}
 	}
 }
+
+func TestIsIPv6(t *testing.T) {
+	a := mustCIDR("2001:db8::/64")
+	b := mustCIDR("2001:db8:0:1000::/65")
+	expectedPanic := "only IPv4 supported"
+	defer func() {
+		if r := recover(); r != nil {
+			if r != expectedPanic {
+				t.Errorf("ожидалась паника: %q, получено: %q", expectedPanic, r)
+			}
+		} else {
+			t.Error("ожидалась паника, но её не было")
+		}
+	}()
+	Overlaps(a, b)
+}
