@@ -17,6 +17,12 @@ type Service struct {
 	rl    *bucket.RateLimiter
 }
 
+type IPList struct {
+	Ok        bool     `json:"ok"`
+	Whitelist []string `json:"whitelist"`
+	Blacklist []string `json:"blacklist"`
+}
+
 func New(store storage.Storage, bucket *bucket.RateLimiter) *Service {
 	return &Service{store: store, rl: bucket}
 }
@@ -65,12 +71,12 @@ func (s *Service) AuthorizeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid ip", http.StatusBadRequest)
 		return
 	}
-	if s.store.InWhitelist(ip) {
-		writeJSON(w, AuthorizeResponse{Ok: true})
-		return
-	}
 	if s.store.InBlacklist(ip) {
 		writeJSON(w, AuthorizeResponse{Ok: false, Reason: "ip in blacklist"})
+		return
+	}
+	if s.store.InWhitelist(ip) {
+		writeJSON(w, AuthorizeResponse{Ok: true})
 		return
 	}
 	ctx := context.Background()
@@ -168,7 +174,7 @@ func (s *Service) handleListOperation(
 			return
 		}
 	}
-	log.Print(req.IP, req.Force)
+	log.Print(req.IP, ", ", req.Force)
 	_, ipnet, err := net.ParseCIDR(req.IP)
 	if err != nil {
 		if ip := net.ParseIP(req.IP); ip != nil {
@@ -184,4 +190,60 @@ func (s *Service) handleListOperation(
 		return
 	}
 	writeJSON(w, ListReponse{Ok: res})
+}
+
+func (s *Service) ViewListsHandler(w http.ResponseWriter, _ *http.Request) {
+	whitelist, blacklist := s.store.BlackWhiteLists()
+	ips := IPList{
+		Ok:        true,
+		Whitelist: make([]string, 0, len(whitelist)),
+		Blacklist: make([]string, 0, len(blacklist)),
+	}
+	for _, ipnet := range whitelist {
+		ips.Whitelist = append(ips.Whitelist, ipnet.String())
+	}
+	for _, ipnet := range blacklist {
+		ips.Blacklist = append(ips.Blacklist, ipnet.String())
+	}
+	writeJSON(w, ips)
+}
+
+func (s *Service) handleRemoveOperation(
+	w http.ResponseWriter,
+	r *http.Request,
+	addFunc func(net.IPNet) (bool, error),
+) {
+	if r.Method != http.MethodPost && r.Method != http.MethodDelete {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req ListRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err == io.EOF {
+			http.Error(w, "Empty field", http.StatusBadRequest)
+			return
+		}
+	}
+	_, ipnet, err := net.ParseCIDR(req.IP)
+	if err != nil {
+		if ip := net.ParseIP(req.IP); ip != nil {
+			ipnet = &net.IPNet{IP: ip, Mask: net.CIDRMask(32, 32)}
+		} else {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	if ok, err := addFunc(*ipnet); !ok {
+		writeJSON(w, ListReponse{Ok: ok, Reason: err.Error()})
+		return
+	}
+	writeJSON(w, ListReponse{Ok: true})
+}
+
+func (s *Service) RemoveFromWhitelistHandler(w http.ResponseWriter, r *http.Request) {
+	s.handleRemoveOperation(w, r, s.store.RemoveFromWhitelist)
+}
+
+func (s *Service) RemoveFromBlacklistHandler(w http.ResponseWriter, r *http.Request) {
+	s.handleRemoveOperation(w, r, s.store.RemoveFromBlacklist)
 }

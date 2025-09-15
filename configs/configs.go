@@ -31,7 +31,6 @@ func LoadConfig() Config {
 	viper.SetDefault("REFILL_IP", 1000)
 	viper.AutomaticEnv()
 
-	// Собираем конфиг
 	cfg := Config{
 		Port:      viper.GetString("PORT"),
 		RedisAddr: viper.GetString("REDIS_ADDR"),

@@ -12,7 +12,10 @@ func NewRouter(svc *service.Service) http.Handler {
 	mux.HandleFunc("/api/bucket/reset", svc.ResetBucketHandler)
 	mux.HandleFunc("/api/bucket/reset/ip", svc.ResetBucketIPHandler)
 	mux.HandleFunc("/api/bucket/reset/login", svc.ResetBucketLoginHandler)
-	mux.HandleFunc("/api/whitelist", svc.WhitelistHandler)
-	mux.HandleFunc("/api/blacklist", svc.BlacklistHandler)
+	mux.HandleFunc("/api/whitelist/add", svc.WhitelistHandler)
+	mux.HandleFunc("/api/blacklist/add", svc.BlacklistHandler)
+	mux.HandleFunc("/api/whitelist/del", svc.RemoveFromWhitelistHandler)
+	mux.HandleFunc("/api/blacklist/del", svc.RemoveFromBlacklistHandler)
+	mux.HandleFunc("/api/view/lists", svc.ViewListsHandler)
 	return loggingMiddleware(mux)
 }

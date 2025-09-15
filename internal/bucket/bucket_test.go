@@ -143,6 +143,8 @@ func TestCheckAllLoginPassIP(t *testing.T) {
 	if _, ok := details["ip"]; !ok {
 		t.Fatalf("details missing 'ip'")
 	}
+	rl.ResetLogin(ctx, login)
+	rl.ResetIP(ctx, ip)
 }
 
 func TestTokenBucketBurstAndRefill(t *testing.T) {

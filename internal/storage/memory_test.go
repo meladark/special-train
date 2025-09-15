@@ -29,12 +29,12 @@ func TestAddToWhitelist(t *testing.T) { //nolint: dupl
 		t.Fatalf("expected success, got ok=%v err=%v", ok, err)
 	}
 	_, err = s.AddToWhitelist(ip, false)
-	if err == nil || err.Error() != fmt.Sprintf("IP overlaps in whitelist: %s", ip.String()) {
+	if err == nil || err.Error() != fmt.Sprintf("IP already in whitelist: %s", ip.String()) {
 		t.Errorf("expected full overlap error, got %v", err)
 	}
 	ip2 := mustCIDR("192.168.1.128/25")
 	ok, err = s.AddToWhitelist(ip2, false)
-	if ok || err == nil || err.Error() != fmt.Sprintf("IP overlaps in whitelist: %s", ip.String()) {
+	if ok || err == nil || err.Error() != fmt.Sprintf("IP already in whitelist: %s", ip.String()) {
 		t.Errorf("expected full overlap (subset), got ok=%v err=%v", ok, err)
 	}
 	if _, found := s.whitelist[ip2.String()]; found {
@@ -50,6 +50,13 @@ func TestAddToWhitelist(t *testing.T) { //nolint: dupl
 	if !ok || err != nil {
 		t.Errorf("expected force insert success, got ok=%v err=%v", ok, err)
 	}
+	ip4 := mustCIDR("8.8.8.1/32")
+	ip5 := mustCIDR("8.8.8.2/10")
+	s.AddToWhitelist(ip4, true)
+	s.AddToWhitelist(ip5, true)
+	s.BlackWhiteLists()
+	s.RemoveFromWhitelist(ip5)
+	s.RemoveFromWhitelist(ip5)
 }
 
 func TestAddToBlacklist(t *testing.T) { //nolint: dupl
@@ -60,12 +67,12 @@ func TestAddToBlacklist(t *testing.T) { //nolint: dupl
 		t.Fatalf("expected success, got ok=%v err=%v", ok, err)
 	}
 	_, err = s.AddToBlacklist(ip, false)
-	if err == nil || err.Error() != fmt.Sprintf("IP overlaps in blacklist: %s", ip.String()) {
+	if err == nil || err.Error() != fmt.Sprintf("IP already in blacklist: %s", ip.String()) {
 		t.Errorf("expected full overlap error, got %v", err)
 	}
 	ip2 := mustCIDR("172.16.128.0/17")
 	ok, err = s.AddToBlacklist(ip2, false)
-	if ok || err == nil || err.Error() != fmt.Sprintf("IP overlaps in blacklist: %s", ip.String()) {
+	if ok || err == nil || err.Error() != fmt.Sprintf("IP already in blacklist: %s", ip.String()) {
 		t.Errorf("expected full overlap (subset), got ok=%v err=%v", ok, err)
 	}
 	if _, found := s.blacklist[ip2.String()]; found {
@@ -81,6 +88,13 @@ func TestAddToBlacklist(t *testing.T) { //nolint: dupl
 	if !ok || err != nil {
 		t.Errorf("expected force insert success, got ok=%v err=%v", ok, err)
 	}
+	ip4 := mustCIDR("8.8.8.1/32")
+	ip5 := mustCIDR("8.8.8.2/10")
+	s.AddToBlacklist(ip4, true)
+	s.AddToBlacklist(ip5, true)
+	s.BlackWhiteLists()
+	s.RemoveFromBlacklist(ip4)
+	s.RemoveFromBlacklist(ip4)
 }
 
 func TestPartialOverlap(t *testing.T) {

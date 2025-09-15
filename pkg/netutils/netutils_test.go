@@ -32,7 +32,7 @@ func TestOverlaps(t *testing.T) {
 	for _, tt := range tests {
 		a := mustCIDR(tt.a)
 		b := mustCIDR(tt.b)
-		got := Overlaps(a, b)
+		got, _ := Overlaps(a, b)
 		if got != tt.expect {
 			t.Errorf("Overlaps(%s, %s) = %v, want %v", tt.a, tt.b, got, tt.expect)
 		}

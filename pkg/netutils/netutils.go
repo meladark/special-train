@@ -24,10 +24,16 @@ func networkRange(n *net.IPNet) (uint32, uint32) {
 	return network, broadcast
 }
 
-func Overlaps(a, b *net.IPNet) bool {
+func Overlaps(a, b *net.IPNet) (bool, *net.IPNet) {
 	aMin, aMax := networkRange(a)
 	bMin, bMax := networkRange(b)
 	aContainsB := bMin <= aMin && bMax >= aMax
 	bContainsA := aMin <= bMin && aMax >= bMax
-	return aContainsB || bContainsA
+	if aContainsB {
+		return true, b
+	}
+	if bContainsA {
+		return true, a
+	}
+	return false, nil
 }

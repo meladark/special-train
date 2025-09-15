@@ -39,7 +39,7 @@ func postAuthorize(t *testing.T, body any) bool {
 func postWhitelist(t *testing.T, ip string) {
 	t.Helper()
 	b, _ := json.Marshal(map[string]string{"ip": ip})
-	resp, err := http.Post(baseURL+"/api/whitelist", "application/json", bytes.NewReader(b))
+	resp, err := http.Post(baseURL+"/api/whitelist/add", "application/json", bytes.NewReader(b))
 	if err != nil {
 		t.Fatalf("POST /api/whitelist failed: %v", err)
 	}
