@@ -19,7 +19,10 @@ func newTestRL(t *testing.T) (*RateLimiter, func()) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
 	})
-	rl := NewRateLimiter(rdb, 5*time.Minute)
+	rl := NewRateLimiter(rdb, 5*time.Minute,
+		BucketConfig{Capacity: 10, RefillPerMinute: 10},
+		BucketConfig{Capacity: 100, RefillPerMinute: 100},
+		BucketConfig{Capacity: 1000, RefillPerMinute: 1000})
 
 	teardown := func() {
 		_ = rdb.Close()
@@ -34,9 +37,7 @@ func TestAllowInitialAndConsume(t *testing.T) {
 	defer cleanup()
 
 	key := "test:allow:init"
-	cfg := BucketConfig{Capacity: 5, RefillPerMinute: 5} // 5 tokens, 5/min -> 1 token per 12s
-
-	// First 5 attempts should be allowed
+	cfg := BucketConfig{Capacity: 5, RefillPerMinute: 5}
 	for i := 0; i < 5; i++ {
 		ok, rem, err := rl.Allow(ctx, key, cfg, 1)
 		if err != nil {
@@ -49,8 +50,6 @@ func TestAllowInitialAndConsume(t *testing.T) {
 			t.Fatalf("unexpected remaining tokens: %v", rem)
 		}
 	}
-
-	// 6th attempt should be blocked (no tokens left)
 	ok, rem, err := rl.Allow(ctx, key, cfg, 1)
 	if err != nil {
 		t.Fatalf("Allow err on 6th: %v", err)
@@ -67,9 +66,7 @@ func TestRefillOverTime(t *testing.T) {
 	defer cleanup()
 
 	key := "test:refill"
-	cfg := BucketConfig{Capacity: 2, RefillPerMinute: 60} // 60/min -> 1 token/sec
-
-	// consume all tokens
+	cfg := BucketConfig{Capacity: 2, RefillPerMinute: 60}
 	for i := 0; i < 2; i++ {
 		ok, _, err := rl.Allow(ctx, key, cfg, 1)
 		if err != nil {
@@ -79,8 +76,6 @@ func TestRefillOverTime(t *testing.T) {
 			t.Fatalf("expected allowed while draining, got blocked at %d", i+1)
 		}
 	}
-
-	// immediately blocked
 	ok, _, err := rl.Allow(ctx, key, cfg, 1)
 	if err != nil {
 		t.Fatalf("Allow err after drain: %v", err)
@@ -88,8 +83,6 @@ func TestRefillOverTime(t *testing.T) {
 	if ok {
 		t.Fatalf("expected blocked immediately after drain")
 	}
-
-	// wait ~1.1s to let one token refill
 	time.Sleep(1100 * time.Millisecond)
 
 	ok, rem, err := rl.Allow(ctx, key, cfg, 1)
@@ -113,19 +106,8 @@ func TestCheckAllLoginPassIP(t *testing.T) {
 	login := "alice@example.com"
 	pass := "SuperSecret!"
 	ip := "198.51.100.7"
-
-	// We'll assume production CheckAll uses:
-	// login: cap 3/min, pass: cap 4/min, ip: cap 10/min
-	// But to be independent of internal defaults, call Allow directly for buckets as well to assert logic.
 	loginKey := "bf:login:" + login
-	//passKey := "bf:pass:" + hashPassword(pass)
-	//ipKey := "bf:ip:" + ip
-
 	loginCfg := BucketConfig{Capacity: 3, RefillPerMinute: 3}
-	//passCfg := BucketConfig{Capacity: 4, RefillPerMinute: 4}
-	//ipCfg := BucketConfig{Capacity: 10, RefillPerMinute: 10}
-
-	// consume login capacity completely
 	for i := 0; i < 3; i++ {
 		ok, _, err := rl.Allow(ctx, loginKey, loginCfg, 1)
 		if err != nil {
@@ -135,7 +117,6 @@ func TestCheckAllLoginPassIP(t *testing.T) {
 			t.Fatalf("expected login allowed on attempt %d", i+1)
 		}
 	}
-	// login now exhausted
 	ok, _, err := rl.Allow(ctx, loginKey, loginCfg, 1)
 	if err != nil {
 		t.Fatalf("Allow login err after drain: %v", err)
@@ -143,8 +124,6 @@ func TestCheckAllLoginPassIP(t *testing.T) {
 	if ok {
 		t.Fatalf("expected login blocked after exhausting tokens")
 	}
-
-	// ensure CheckAll returns false due to login bucket
 	allowed, details, err := rl.CheckAll(ctx, login, pass, ip)
 	if err != nil {
 		t.Fatalf("CheckAll err: %v", err)
@@ -158,8 +137,6 @@ func TestCheckAllLoginPassIP(t *testing.T) {
 	if details["login"] != false {
 		t.Fatalf("expected login detail to be false, got true")
 	}
-	// ip/pass should still be allowed
-	// we won't assert exact values (depends on package defaults), but ensure keys present
 	if _, ok := details["pass"]; !ok {
 		t.Fatalf("details missing 'pass'")
 	}
@@ -175,7 +152,10 @@ func newTestLimiter(t *testing.T) (*RateLimiter, func()) {
 		t.Fatalf("miniredis.Run failed: %v", err)
 	}
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	rl := NewRateLimiter(rdb, time.Minute)
+	rl := NewRateLimiter(rdb, time.Minute,
+		BucketConfig{Capacity: 10, RefillPerMinute: 10},
+		BucketConfig{Capacity: 100, RefillPerMinute: 100},
+		BucketConfig{Capacity: 1000, RefillPerMinute: 1000})
 	cleanup := func() {
 		_ = rdb.Close()
 		mr.Close()
@@ -188,7 +168,7 @@ func TestTokenBucketBurstAndRefill(t *testing.T) {
 	rl, cleanup := newTestLimiter(t)
 	defer cleanup()
 	key := "test:burst"
-	cfg := BucketConfig{Capacity: 10, RefillPerMinute: 10} // 10 токенов, 10 в минуту (~1 токен/6 сек)
+	cfg := BucketConfig{Capacity: 10, RefillPerMinute: 10}
 	for i := 1; i <= 10; i++ {
 		ok, _, err := rl.Allow(ctx, key, cfg, 1)
 		if err != nil {

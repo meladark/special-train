@@ -35,3 +35,6 @@ stop_docker:
 integration_test: docker
 	go test -v ./tests/integration_test.go
 	@make stop_docker
+
+linter:
+	golangci-lint run
