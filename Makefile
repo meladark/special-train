@@ -27,10 +27,10 @@ clean:
 	go clean
 
 docker:
-	docker-compose up --build -d
+	docker compose up --build -d
 
 stop_docker:
-	docker-compose down
+	docker compose down
 
 integration_test: docker
 	go test -v ./tests/integration_test.go
