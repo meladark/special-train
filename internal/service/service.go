@@ -42,6 +42,13 @@ type ListReponse struct {
 	Reason string `json:"reason,omitempty"`
 }
 
+func writeJSON(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		log.Printf("failed to write JSON response: %v", err)
+	}
+}
+
 func (s *Service) AuthorizeHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -59,11 +66,11 @@ func (s *Service) AuthorizeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.store.InWhitelist(ip) {
-		json.NewEncoder(w).Encode(AuthorizeResponse{Ok: true})
+		writeJSON(w, AuthorizeResponse{Ok: true})
 		return
 	}
 	if s.store.InBlacklist(ip) {
-		json.NewEncoder(w).Encode(AuthorizeResponse{Ok: false, Reason: "ip in blacklist"})
+		writeJSON(w, AuthorizeResponse{Ok: false, Reason: "ip in blacklist"})
 		return
 	}
 	ctx := context.Background()
@@ -74,10 +81,10 @@ func (s *Service) AuthorizeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !allow {
-		json.NewEncoder(w).Encode(AuthorizeResponse{Ok: false, Reason: "rate limit exceeded"})
+		writeJSON(w, AuthorizeResponse{Ok: false, Reason: "rate limit exceeded"})
 		return
 	}
-	json.NewEncoder(w).Encode(AuthorizeResponse{Ok: true})
+	writeJSON(w, AuthorizeResponse{Ok: true})
 }
 
 func (s *Service) ResetBucketHandler(w http.ResponseWriter, r *http.Request) {
@@ -90,7 +97,7 @@ func (s *Service) ResetBucketHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "service error: "+err.Error(), http.StatusMethodNotAllowed)
 	}
-	json.NewEncoder(w).Encode(AuthorizeResponse{Ok: true})
+	writeJSON(w, AuthorizeResponse{Ok: true})
 }
 
 func (s *Service) ResetBucketIPHandler(w http.ResponseWriter, r *http.Request) {
@@ -111,7 +118,7 @@ func (s *Service) ResetBucketIPHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "service error: "+err.Error(), http.StatusMethodNotAllowed)
 			return
 		}
-		json.NewEncoder(w).Encode(AuthorizeResponse{Ok: true})
+		writeJSON(w, AuthorizeResponse{Ok: true})
 		return
 	}
 	http.Error(w, "invalid ip", http.StatusBadRequest)
@@ -125,16 +132,16 @@ func (s *Service) ResetBucketLoginHandler(w http.ResponseWriter, r *http.Request
 	var req AuthorizeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		if err == io.EOF {
-			http.Error(w, "empty field", http.StatusBadRequest)
+			http.Error(w, "Empty field", http.StatusBadRequest)
 			return
 		}
 	}
 	log.Print(req.Login)
-	if err := s.rl.ResetLogin(context.Background(), req.Login); err != nil {
+	if err := s.rl.ResetIP(context.Background(), req.IP); err != nil {
 		http.Error(w, "service error: "+err.Error(), http.StatusMethodNotAllowed)
 		return
 	}
-	json.NewEncoder(w).Encode(AuthorizeResponse{Ok: true})
+	writeJSON(w, AuthorizeResponse{Ok: true})
 }
 
 func (s *Service) WhitelistHandler(w http.ResponseWriter, r *http.Request) {
@@ -161,10 +168,10 @@ func (s *Service) WhitelistHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := s.store.AddToWhitelist(*ipnet, req.Force)
 	if err != nil {
-		json.NewEncoder(w).Encode(ListReponse{Ok: res, Reason: err.Error()})
+		writeJSON(w, ListReponse{Ok: res, Reason: err.Error()})
 		return
 	}
-	json.NewEncoder(w).Encode(ListReponse{Ok: res})
+	writeJSON(w, ListReponse{Ok: res})
 }
 
 func (s *Service) BlacklistHandler(w http.ResponseWriter, r *http.Request) {
@@ -191,8 +198,8 @@ func (s *Service) BlacklistHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := s.store.AddToBlacklist(*ipnet, req.Force)
 	if err != nil {
-		json.NewEncoder(w).Encode(ListReponse{Ok: res, Reason: err.Error()})
+		writeJSON(w, ListReponse{Ok: res, Reason: err.Error()})
 		return
 	}
-	json.NewEncoder(w).Encode(ListReponse{Ok: res})
+	writeJSON(w, ListReponse{Ok: res})
 }

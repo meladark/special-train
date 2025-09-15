@@ -20,7 +20,11 @@ func main() {
 		Addr: cfg.RedisAddr,
 		DB:   0,
 	})
-	defer rdb.Close()
+	defer func() {
+		if err := rdb.Close(); err != nil {
+			log.Printf("failed to close redis: %v", err)
+		}
+	}()
 	rl := bucket.NewRateLimiter(rdb, 5*time.Minute,
 		bucket.BucketConfig{Capacity: cfg.CLogin, RefillPerMinute: cfg.RLogin},
 		bucket.BucketConfig{Capacity: cfg.CPass, RefillPerMinute: cfg.RPass},
