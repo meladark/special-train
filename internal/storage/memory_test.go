@@ -14,15 +14,14 @@ func mustCIDR(s string) net.IPNet {
 	return *ipnet
 }
 
-func mustIp(s string) net.IP {
+func mustIP(s string) net.IP {
 	if ip := net.ParseIP(s); ip != nil {
 		return ip
-	} else {
-		panic(fmt.Sprintf("invalid IP: %s", s))
 	}
+	panic(fmt.Sprintf("invalid IP: %s", s))
 }
 
-func TestAddToWhitelist(t *testing.T) {
+func TestAddToWhitelist(t *testing.T) { //nolint: dupl
 	s := NewInMemoryStorage()
 	ip := mustCIDR("192.168.1.0/24")
 	ok, err := s.AddToWhitelist(ip, false)
@@ -53,7 +52,7 @@ func TestAddToWhitelist(t *testing.T) {
 	}
 }
 
-func TestAddToBlacklist(t *testing.T) {
+func TestAddToBlacklist(t *testing.T) { //nolint: dupl
 	s := NewInMemoryStorage()
 	ip := mustCIDR("172.16.0.0/16")
 	ok, err := s.AddToBlacklist(ip, false)
@@ -99,10 +98,10 @@ func TestPartialOverlap(t *testing.T) {
 	if _, found := w.whitelist[ip2.String()]; !found {
 		t.Errorf("partial overlapping subnet should be added to whitelist")
 	}
-	if !w.InWhitelist(mustIp("192.168.1.65")) {
+	if !w.InWhitelist(mustIP("192.168.1.65")) {
 		t.Error("expected IP to be in whitelist")
 	}
-	if w.InWhitelist(mustIp("192.168.2.128")) {
+	if w.InWhitelist(mustIP("192.168.2.128")) {
 		t.Error(
 			"expected IP to NOT be in whitelist",
 		)
@@ -121,12 +120,12 @@ func TestPartialOverlap(t *testing.T) {
 	if _, found := b.blacklist[ip4.String()]; !found {
 		t.Errorf("partial overlapping subnet should be added to blacklist")
 	}
-	if !b.InBlacklist(mustIp("10.0.0.65")) {
+	if !b.InBlacklist(mustIP("10.0.0.65")) {
 		t.Error(
 			"expected IP to be in blacklist",
 		)
 	}
-	if b.InBlacklist(mustIp("10.0.1.128")) {
+	if b.InBlacklist(mustIP("10.0.1.128")) {
 		t.Error(
 			"expected IP to NOT be in blacklist",
 		)

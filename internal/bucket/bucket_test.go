@@ -20,9 +20,9 @@ func newTestRL(t *testing.T) (*RateLimiter, func()) {
 		Addr: mr.Addr(),
 	})
 	rl := NewRateLimiter(rdb, 5*time.Minute,
-		BucketConfig{Capacity: 10, RefillPerMinute: 10},
-		BucketConfig{Capacity: 100, RefillPerMinute: 100},
-		BucketConfig{Capacity: 1000, RefillPerMinute: 1000})
+		Config{Capacity: 10, RefillPerMinute: 10},
+		Config{Capacity: 100, RefillPerMinute: 100},
+		Config{Capacity: 1000, RefillPerMinute: 1000})
 
 	teardown := func() {
 		_ = rdb.Close()
@@ -37,7 +37,7 @@ func TestAllowInitialAndConsume(t *testing.T) {
 	defer cleanup()
 
 	key := "test:allow:init"
-	cfg := BucketConfig{Capacity: 5, RefillPerMinute: 5}
+	cfg := Config{Capacity: 5, RefillPerMinute: 5}
 	for i := 0; i < 5; i++ {
 		ok, rem, err := rl.Allow(ctx, key, cfg, 1)
 		if err != nil {
@@ -66,7 +66,7 @@ func TestRefillOverTime(t *testing.T) {
 	defer cleanup()
 
 	key := "test:refill"
-	cfg := BucketConfig{Capacity: 2, RefillPerMinute: 60}
+	cfg := Config{Capacity: 2, RefillPerMinute: 60}
 	for i := 0; i < 2; i++ {
 		ok, _, err := rl.Allow(ctx, key, cfg, 1)
 		if err != nil {
@@ -107,7 +107,7 @@ func TestCheckAllLoginPassIP(t *testing.T) {
 	pass := "SuperSecret!"
 	ip := "198.51.100.7"
 	loginKey := "bf:login:" + login
-	loginCfg := BucketConfig{Capacity: 3, RefillPerMinute: 3}
+	loginCfg := Config{Capacity: 3, RefillPerMinute: 3}
 	for i := 0; i < 3; i++ {
 		ok, _, err := rl.Allow(ctx, loginKey, loginCfg, 1)
 		if err != nil {
@@ -145,30 +145,12 @@ func TestCheckAllLoginPassIP(t *testing.T) {
 	}
 }
 
-func newTestLimiter(t *testing.T) (*RateLimiter, func()) {
-	t.Helper()
-	mr, err := miniredis.Run()
-	if err != nil {
-		t.Fatalf("miniredis.Run failed: %v", err)
-	}
-	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	rl := NewRateLimiter(rdb, time.Minute,
-		BucketConfig{Capacity: 10, RefillPerMinute: 10},
-		BucketConfig{Capacity: 100, RefillPerMinute: 100},
-		BucketConfig{Capacity: 1000, RefillPerMinute: 1000})
-	cleanup := func() {
-		_ = rdb.Close()
-		mr.Close()
-	}
-	return rl, cleanup
-}
-
 func TestTokenBucketBurstAndRefill(t *testing.T) {
 	ctx := context.Background()
-	rl, cleanup := newTestLimiter(t)
+	rl, cleanup := newTestRL(t)
 	defer cleanup()
 	key := "test:burst"
-	cfg := BucketConfig{Capacity: 10, RefillPerMinute: 10}
+	cfg := Config{Capacity: 10, RefillPerMinute: 10}
 	for i := 1; i <= 10; i++ {
 		ok, _, err := rl.Allow(ctx, key, cfg, 1)
 		if err != nil {

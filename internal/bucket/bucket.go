@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -12,7 +13,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-type BucketConfig struct {
+type Config struct {
 	Capacity        int
 	RefillPerMinute int
 }
@@ -21,12 +22,17 @@ type RateLimiter struct {
 	rdb        *redis.Client
 	keyTTL     time.Duration
 	maxRetries int
-	loginCfg   BucketConfig
-	passCfg    BucketConfig
-	ipCfg      BucketConfig
+	loginCfg   Config
+	passCfg    Config
+	ipCfg      Config
 }
 
-func NewRateLimiter(rdb *redis.Client, keyTTL time.Duration, loginCfg BucketConfig, passCfg BucketConfig, ipCfg BucketConfig) *RateLimiter {
+func NewRateLimiter(rdb *redis.Client,
+	keyTTL time.Duration,
+	loginCfg Config,
+	passCfg Config,
+	ipCfg Config,
+) *RateLimiter {
 	return &RateLimiter{
 		rdb:        rdb,
 		keyTTL:     keyTTL,
@@ -42,7 +48,11 @@ func hashPassword(pw string) string {
 	return hex.EncodeToString(h[:])
 }
 
-func (rl *RateLimiter) Allow(ctx context.Context, key string, cfg BucketConfig, requested int) (bool, float64, error) {
+func (rl *RateLimiter) Allow(ctx context.Context, //nolint: gocognit
+	key string,
+	cfg Config,
+	requested int,
+) (bool, float64, error) {
 	refillPerSec := float64(cfg.RefillPerMinute) / 60.0
 	attempts := 0
 	for attempts < rl.maxRetries {
@@ -51,16 +61,16 @@ func (rl *RateLimiter) Allow(ctx context.Context, key string, cfg BucketConfig, 
 		var remaining float64
 		err := rl.rdb.Watch(ctx, func(tx *redis.Tx) error {
 			tokensStr, err := tx.HGet(ctx, key, "tokens").Result()
-			if err != nil && err != redis.Nil {
+			if err != nil && !errors.Is(err, redis.Nil) {
 				return err
 			}
 			tsStr, err2 := tx.HGet(ctx, key, "ts").Result()
-			if err2 != nil && err2 != redis.Nil {
+			if err2 != nil && !errors.Is(err2, redis.Nil) {
 				return err2
 			}
 			now := float64(time.Now().UnixNano()) / 1e9
 			var tokens float64
-			if err == redis.Nil {
+			if errors.Is(err, redis.Nil) {
 				tokens = float64(cfg.Capacity)
 			} else {
 				tokens, err = strconv.ParseFloat(tokensStr, 64)
@@ -69,7 +79,7 @@ func (rl *RateLimiter) Allow(ctx context.Context, key string, cfg BucketConfig, 
 				}
 			}
 			var lastTs float64
-			if err2 == redis.Nil {
+			if errors.Is(err2, redis.Nil) {
 				lastTs = now
 			} else {
 				lastTs, err2 = strconv.ParseFloat(tsStr, 64)
@@ -100,7 +110,7 @@ func (rl *RateLimiter) Allow(ctx context.Context, key string, cfg BucketConfig, 
 		if err == nil {
 			return allowed, remaining, nil
 		}
-		if err == redis.TxFailedErr {
+		if errors.Is(err, redis.TxFailedErr) {
 			continue
 		}
 		return false, 0, err

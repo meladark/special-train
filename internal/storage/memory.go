@@ -43,7 +43,7 @@ func (s *InMemoryStorage) InBlacklist(ip net.IP) bool {
 	return false
 }
 
-func (s *InMemoryStorage) AddToWhitelist(ip net.IPNet, force bool) (Ok bool, err error) {
+func (s *InMemoryStorage) AddToWhitelist(ip net.IPNet, force bool) (ok bool, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	err = nil
@@ -59,12 +59,12 @@ func (s *InMemoryStorage) AddToWhitelist(ip net.IPNet, force bool) (Ok bool, err
 			}
 		}
 	}
-	Ok = true
+	ok = true
 	s.whitelist[ip.String()] = &ip
 	return
 }
 
-func (s *InMemoryStorage) AddToBlacklist(ip net.IPNet, force bool) (Ok bool, err error) {
+func (s *InMemoryStorage) AddToBlacklist(ip net.IPNet, force bool) (ok bool, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	err = nil
@@ -80,7 +80,7 @@ func (s *InMemoryStorage) AddToBlacklist(ip net.IPNet, force bool) (Ok bool, err
 			}
 		}
 	}
-	Ok = true
+	ok = true
 	s.blacklist[ip.String()] = &ip
 	return
 }

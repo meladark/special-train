@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-type serviceConfig struct {
+type Config struct {
 	Port      string
 	RedisAddr string
 	CLogin    int
@@ -18,7 +18,7 @@ type serviceConfig struct {
 	RIP       int
 }
 
-func LoadConfig() serviceConfig {
+func LoadConfig() Config {
 	viper.SetDefault("PORT", "8080")
 	viper.SetDefault("REDIS_ADDR", "127.0.0.1:6379")
 
@@ -32,7 +32,7 @@ func LoadConfig() serviceConfig {
 	viper.AutomaticEnv()
 
 	// Собираем конфиг
-	cfg := serviceConfig{
+	cfg := Config{
 		Port:      viper.GetString("PORT"),
 		RedisAddr: viper.GetString("REDIS_ADDR"),
 
@@ -48,7 +48,7 @@ func LoadConfig() serviceConfig {
 	return cfg
 }
 
-func (c serviceConfig) prettyPrint() {
+func (c Config) prettyPrint() {
 	border := strings.Repeat("=", 40)
 	log.Println(border)
 	log.Println("Service configuration:")

@@ -20,7 +20,7 @@ start: build start_redis
 	REDIS_ADDR=127.0.0.1:6380 $(BUILD_DIR)/$(APP_NAME)
 
 test:
-	go test ./... -v -race -count 1
+	go test ./... -v -race -count 10
 
 clean:
 	rm -rf $(BUILD_DIR)
@@ -38,3 +38,5 @@ integration_test: docker
 
 lint:
 	golangci-lint run
+
+CI: clean build lint test integration_test

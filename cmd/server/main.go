@@ -26,13 +26,17 @@ func main() {
 		}
 	}()
 	rl := bucket.NewRateLimiter(rdb, 5*time.Minute,
-		bucket.BucketConfig{Capacity: cfg.CLogin, RefillPerMinute: cfg.RLogin},
-		bucket.BucketConfig{Capacity: cfg.CPass, RefillPerMinute: cfg.RPass},
-		bucket.BucketConfig{Capacity: cfg.CIP, RefillPerMinute: cfg.RIP})
+		bucket.Config{Capacity: cfg.CLogin, RefillPerMinute: cfg.RLogin},
+		bucket.Config{Capacity: cfg.CPass, RefillPerMinute: cfg.RPass},
+		bucket.Config{Capacity: cfg.CIP, RefillPerMinute: cfg.RIP})
 	svc := service.New(store, rl)
 	router := api.NewRouter(svc)
 	srv := app.NewServer(":"+cfg.Port, router)
 	if err := srv.Run(); err != nil {
+		if err := rdb.Close(); err != nil {
+			log.Printf("failed to close redis: %v", err)
+		}
+		//nolint: gocritic
 		log.Fatalf("server error: %v", err)
 	}
 }

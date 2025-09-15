@@ -145,36 +145,18 @@ func (s *Service) ResetBucketLoginHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Service) WhitelistHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	var req ListRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		if err == io.EOF {
-			http.Error(w, "Empty field", http.StatusBadRequest)
-			return
-		}
-	}
-	log.Print(req.IP, req.Force)
-	_, ipnet, err := net.ParseCIDR(req.IP)
-	if err != nil {
-		if ip := net.ParseIP(req.IP); ip != nil {
-			ipnet = &net.IPNet{IP: ip, Mask: net.CIDRMask(32, 32)}
-		} else {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-	}
-	res, err := s.store.AddToWhitelist(*ipnet, req.Force)
-	if err != nil {
-		writeJSON(w, ListReponse{Ok: res, Reason: err.Error()})
-		return
-	}
-	writeJSON(w, ListReponse{Ok: res})
+	s.handleListOperation(w, r, s.store.AddToWhitelist)
 }
 
 func (s *Service) BlacklistHandler(w http.ResponseWriter, r *http.Request) {
+	s.handleListOperation(w, r, s.store.AddToBlacklist)
+}
+
+func (s *Service) handleListOperation(
+	w http.ResponseWriter,
+	r *http.Request,
+	addFunc func(net.IPNet, bool) (bool, error),
+) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -196,7 +178,7 @@ func (s *Service) BlacklistHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	res, err := s.store.AddToBlacklist(*ipnet, req.Force)
+	res, err := addFunc(*ipnet, req.Force)
 	if err != nil {
 		writeJSON(w, ListReponse{Ok: res, Reason: err.Error()})
 		return
