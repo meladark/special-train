@@ -137,7 +137,7 @@ func (s *Service) ResetBucketLoginHandler(w http.ResponseWriter, r *http.Request
 		}
 	}
 	log.Print(req.Login)
-	if err := s.rl.ResetIP(context.Background(), req.IP); err != nil {
+	if err := s.rl.ResetLogin(context.Background(), req.Login); err != nil {
 		http.Error(w, "service error: "+err.Error(), http.StatusMethodNotAllowed)
 		return
 	}
